@@ -1,0 +1,370 @@
+#	-*- sh -*-
+#
+#	General yaps example configuration file
+#
+#########################################
+#	global section			#
+#########################################
+#
+#	This is a comma seperated list of available services. This
+#	is required for autodetect the matching service for a
+#	pager-id
+services	D1,D2,E+
++services	Telmi,Telmi-Fun,Telmi-Family,Telmi-Top,Telmi-Pro
++services	Skyper,Quix
+#
+#	This is the default caller-id. If the protocol/service allowes
+#	it, this is inserted in the message (and the receiver gets this
+#	as the sender's number)
+call-id		+1-(555)-1234
+#
+#	If you forget to sign your message, you can automatically append
+#	this string to each message.
+signature	(It's me!)
+#
+#	You can either switch the use of the signature here on for all
+#	services or in each service section for that particular service.
+use-signature	True
+#
+#	To get more verbose output when running yaps increase this value.
+#	Currently 4 is the highest supported value.
+verbose		0
+#
+#	If you'd like to log every sending session define this. It should
+#	point to a writeable file. If you install the software setgid, then
+#	change the group of this file to the same yaps uses and make it
+#	group writeable.
+logfile		/var/log/yaps.log
+#
+#	A comma seperated list of modem sections. You can also define this
+#	in each service section.
+modems		standard
+#
+#	some global defaults for the serial interface (even if the most
+#	protocols are assuming 7e1, these settings seem to work well)
+speed		38400
+bits-per-byte	8
+parity		none
+stopbits	1
+
+#
+#	To calculate the cost for each call, you can define some globales
+#	here and do the fine tuning in each protocol
+cost	cost=0.12,unit=DM,remainder=2,dial-overhead=13
+
+#
+#	These are two example of internal conversion tables. The can be
+#	used using the `convert' entry (see below).
+cv-default	{
+	Ä	[
+	Ö	\
+	Ü	]
+	ä	{
+	ö	|
+	ü	}
+	ß	~
+}
+cv-extend	{
+	\l	\s
+	\n	\s
+	\r	\s
+	\f	\s
+	\t	\s
+}
+
+#
+#	These values are normally only found in each service section,
+#	but are listen here with an explaination for completeness.
+#
+#	This is the phone number of the modem gateway for this service
+#phone		0015559876
+
+#
+#	This is the protocol the service uses. Currently this can be
+#	either ascii, script, ucp or tap. Each protocol has a set of
+#	special configuration parameters, see below.
+#protocol	tap
+
+#
+#	Most services limit the length of a message to a specific length.
+#	Enter the value here to check valid messages
+#max-size	160
+
+#
+#	If a message is longer than max-size, you can set this to split
+#	it off into several single messages of allowed length
+#may-split	True
+
+#
+#	If a message is longer than max-size, you can set this to truncate
+#	the message to the allowed length. The remaining part is discarded.
+#truncate	True
+
+#
+#	Some services allow to send more than one message per session. If
+#	it is limited, set it using this parameter
+#max-messages	1
+
+#
+#	If the service allows using your caller-id set this to True.
+#use-call-id	True
+
+#
+#	If the service is reachable over a phonenumber where the pager-id
+#	is part of the phone number, define this and add a `%P' anywehere
+#	in the `phone' number.
+#insert-pager-id	True
+
+#
+#	Remove these characters from the pager-id, as they are not valid
+rm-invalids-pid	+ (-)
+
+#
+#	Dito for caller id
+rm-invalids-cid	+ (-)
+
+#
+#	Check for valid call id (see below for more details) While 
+#	valid-pid is required, this is optional
+#valid-cid	^(001|1)
+#change-cid	001
+
+#
+#	Depending on your system the value for this parameter is either a
+#	regular expression or a simple list of strings (seperated by bars)
+#	which must match the prefix of the pager-id.
+#valid-pid	^(0171|0049171)
+#valid-pid	0171|0049171
+#	Use these paramters in the global section if you want do not want
+#	to check pager-ids (and do not set change-pid):
+#valid-pid	.
+#valid-pid	-
+
+#
+#	If a pagerid has matched the expression above, then the matching part
+#	may be replaced by this string
+#change-pid	0171
+
+#
+#	As the services do not use (in general) the ISO 8859/1 character set,
+#	one can define convertion tables. you can either specify a file which
+#	contains the convertion rules:
+#conv-table	/usr/local/lib/yaps/iso2din.tab
+
+#	or use predefined convertion rules
+#convert	*no-control,*no-8bit,cv-default,cv-extended
+
+#
+#	If this is set, send a message even if a requested feature is
+#	not available
+#force		True
+
+#
+#	If the provider supportes to set a delay for sending the message,
+#	set this
+#can-delay	True
+
+#
+#	If the provider can delete a buffered message after a period of time,
+#	set this
+#can-expire	True
+
+#
+#	If the provider can report a delivery status, set this.
+#can-rds	True
+
+#
+#	To check wether a call-id/pager-id is valid use these paramters.
+#	For the exact syntax see the documentation
+#check-call-id	>1111111111111111<
+#check-pager-id	>1111111111111111<
+#check-call-id	+minimum=0,maximum=16,type=numeric
+
+#
+#	These values are typically found in a modem section, but can also
+#	appear in the global section to set some defaults
+
+#
+#	Set this to the modem device you wish to use
+#device		/dev/modem
+#device		/dev/cua1
+#device		/dev/cua/a
+
+#
+#	Set this to the prefix of the lockfile use for the device. There
+#	are several places, and two common formats:
+#lock-prefix	/usr/spool/uucp/LCK..
+#lock-prefix	/var/spool/lock/LCK..
+#lock-prefix	/var/spool/locks/LK.
+
+#
+#	The different format of the part which is appended to the lockfile
+#	and the contents can be specified here. See documentation for a
+#	full list inclusive explaination
+#lock-method	sysv4
+#lock-method	binary
+#lock-method	timeout=10
+
+#
+#	These are send/expect sequences to talk to the modem. For an exact
+#	definition see (again) the documentation. Following entries are
+#	supported:
+#	init:		to initialize the modem
+#	local-init:	a second initialization string, used to customize
+#			already defined modems for different handling
+#	dial:		to dial a phone number %L is replaced with the
+#			phone number itself
+#	timeout:	the default timeout in seconds to wait for answers
+#	reset:		to reset the modem
+
+#########################################
+#	service section			#
+#########################################
+#
+#	D1 (by Deutsche Telekom)
+#
+[D1]
+protocol	tap
+valid-pid	0171|0049171|49171
+change-pid	0171
+convert		*no-8bit,cv-d1
+cv-d1		{
+	Ä	[
+	Ö	\
+	Ü	~
+	ä	{
+	ö	|
+	ü	~
+	ß	^]
+}
++cost		timetable=Wk0800-1800=5.7;Wk1800-0800=11.4;Ss=11.4
+phone		01712092522
+max-size	160
+may-split	True
+use-call-id	False
+tap-old		True
+#
+#	D2 (by Mannesmann Mobilfunk)
+#
+[D2]
+modem		standard-d2
+protocol	ucp
+valid-pid	0172|0049172|49172
+change-pid	0172
+convert		*no-8bit,cv-default
++cost		timetable=Wk0800-1800=5.7;Wk1800-0800=11.4;Ss=11.4
+phone		01722278020
+max-size	160
+may-split	True
+use-call-id	True
+can-delay	True
+can-expire	True
+can-rds		True
+check-call-id	>1111111111111111<
+check-pager-id	>1111111111111111<
+ucp-extend	True
+#
+#	E+ (by ???)
+#	!! UNTESTED !!
+#
+[E+]
+protocol	tap
+valid-pid	0177|0049177|49177
+change-pid	0177
+convert		*no-8bit,cv-default
++cost		timetable=Wk0800-1800=5.7;Wk1800-0800=11.4;Ss=11.4
+phone		01771167
+max-size	160
+may-split	True
+use-call-id	False
+#
+#	Telmi, Telmi-* (by Deutsche Funkruf)
+#	!! ONLY TESTED FOR TELMI-FUN !!
+#
+[Telmi]
+protocol	tap
+valid-pid	01661|01665|00491661|00491665|491661|491665
+change-pid	-
+convert		*no-control,*no-8bit,cv-default,cv-extend
++cost		entity-length=5.2
+phone		016601010101
+max-size	114
+may-split	True
+max-messages	1
+use-call-id	False
+check-pager-id	1111111
+tap-old		True
+[Telmi-Fun] Telmi
+[Telmi-Family] Telmi
+[Telmi-Top] Telmi
+max-size	240
+[Telmi-Pro] Telmi-Top
+#
+#	Skyper (by Deutsche Telekom)
+#	!! UNTESTED !!
+#
+[Skyper]
+protocol	tap
+valid-pid	01692|00491692|491692
+change-pid	-
+convert		*no-8bit,cv-default,cv-extend
++cost		fixed,cost=0.96
+phone		01692%P
+max-size	80
+use-call-id	False
+insert-pager-id	True
+#
+#	Quix (by Miniruf)
+#	!! UNTESTED !!
+#
+[Quix]
+protocol	ucp
+valid-pid	01653|00491653|491653
+change-pid	-
++cost		fixed,timetable=Wk0800-1800=1.20;Al=0.96
+convert		*no-8bit,cv-default,cv-extend
+phone		016593
+max-size	80
+use-call-id	True
+
+#########################################
+#	modem section			#
+#########################################
+[standard]
+#
+#	Locking
+#
+#	Older Unix versions
+lock-prefix	/usr/spool/uucp/LCK..
+#	Newer Unix versions
+#lock-prefix	/var/spool/uucp/LCK..
+#lock-prefix	/var/lock/LCK..
+#	SysV4
+#lock-prefix	/var/spool/locks/LK.
+#lock-method	sysv4
+#
+#	Device
+#
+#	Typical a symbolic link to the real device
+device		/dev/modem
+#	"normal" call-out device
+#device		/dev/cua1
+#	Solaris convention
+#device		/dev/cua/a
+
+#
+#	Modem talk
+#
+init		\\r !200D ATZ\r <OK ATE0Q0V1\r <OK
+dial		ATD%L\r <60CONNECT|OK|BUSY|NO\sDIALTONE|NO\sCARRIER
+reset		ATZ\r <OK
+timeout		10
+#	Customizing an existing modem entry
+[standard-d2] standard
+local-init	AT\%C2\r <OK
+#
+#	alias section
+#
+[alias]
+#foo		001 555 1221
+#bar		+1-(555)-2112

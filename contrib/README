@@ -1,0 +1,10 @@
+Here all available contributed files, a short description and
+the author:
+
+m2y.pl:		Simple perl script to use yaps in a mail to pager
+		enviroment. Just an example, for real use you have
+		to enhance it significant. (Ulrich Dessauer)
+
+tap.sl:		Example for usage of scripting as a protocol
+		replacement. This implements a minimal subset
+		of TAP.

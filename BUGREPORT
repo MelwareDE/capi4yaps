@@ -1,0 +1,25 @@
+As this software is in the Alpha state, there are still some bugs or
+problems. If you encountered one please include following informations when
+reporting it:
+- The version you are using.
+- Your `Config', `config.h' and `yaps.rc' file.
+- Call `yaps -V' and redirect the output into a file. Include this file.
+- A command to reproduce the bug.
+- The output with the highest verbosity. This can be
+  done by starting yaps with several -v's (at least 4) and
+  redirecting stdout and stderr into a file, e.g.:
+  yaps -vvvv [your options] &> bug              [bash]
+  	- or -
+  yaps -vvvv [your options] >bug 2>&1           [sh]
+  	- or -
+  see your shell manual.
+- If the program terminates recompile it with debug information
+  (if not already done). Reproduce the problem. Start the program
+  under the control of the debugger. Save the location and the stack
+  frame into a file. Send the file. If a core file is generated, 
+  start the debugger on the program/core pair, print the location
+  and the stack frame into a file. Send the file.
+- DO NOT SEND CORE FILES!!!
+
+Send these information either to <yaps@nitmar.tnet.de> (preferred) or
+<ud@cube.net>.

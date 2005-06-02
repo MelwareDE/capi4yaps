@@ -1,0 +1,19 @@
+Begin3
+Title:          yaps
+Version:        0.96
+Entered-date:   14JUN97
+Description:    This is a standalone program to send messages to paging
+                devices over a modem gateway using well defined protocols.
+Keywords:       pager sms tap ucp
+Author:         ud@nitmar.tnet.de (Ulrich Dessauer)
+Maintained-by:  ud@nitmar.tnet.de (Ulrich Dessauer)
+Primary-site:   ftp.sta.com /pub/fk/yaps
+                91k yaps-0.96.tar.gz
+		725 yaps.lsm
+Alternate-site: sunsite.unc.edu /pub/Linux/apps/serialcomm/machines/
+                91k yaps-0.96.tar.gz
+		725 yaps.lsm
+Platforms:      Linux, Solaris, SunOS and modem (or modem like device,
+                e.g. ISDN) optional SLang V99.38, Lua-2.5
+Copying-policy: GPL
+End

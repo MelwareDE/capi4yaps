@@ -1,0 +1,65 @@
+#	-*- sh -*-
+#	SECTION A.) Global configuration
+#	Select compiler command
+CC	= gcc
+#
+CFLAGS	= -Wall -Wno-parentheses -Wshadow -Wstrict-prototypes -Wmissing-prototypes
+LDFLAGS	=
+EXLIBS	=
+#
+#	Select scripting language(s)
+#	SLang (ftp://space.mit.edu/pub/davis/slang/)
+#SLANG	= True
+#	LUA (ftp://ftp.icad.puc-rio.br/pub/lua/)
+#LUA	= True
+#
+#	Define this to disable debugging
+#NDEBUG	= True
+#
+#
+#
+#	SECTION B.) yaps configuration
+#	Name and location of global configuration file
+YAPS_CFGFILE	= /etc/yaps.rc
+#	Name of local configuration file (location is $HOME.)
+YAPS_LCFGFILE 	= .yapsrc
+#	Directory for installing the binary
+YAPS_BINDIR	= /usr/local/bin
+#	Directory for optional support files
+YAPS_LIBDIR	= /usr/local/lib/yaps
+#	User/Group/Mode for yaps
+YAPS_USER	= bin
+YAPS_GROUP	= uucp
+YAPS_MODE	= 2711
+#	User/Group/Mode for global configuration file
+YAPS_RCUSER	= bin
+YAPS_RCGROUP	= bin
+YAPS_RCMODE	= 644
+#
+#	End of Configuration, the rest is for automatic
+#	configuration depending on settings above
+LDEFS	=
+LLIBS	=
+ifdef	SLANG
+LDEFS	+= -DSCRIPT_SLANG
+LLIBS	+= -lslang
+MATH	= True
+endif
+ifdef	LUA
+LDEFS	+= -DSCRIPT_LUA
+LLIBS	+= -llualib -llua
+MATH	= True
+endif
+ifdef	MATH
+LLIBS	+= -lm
+endif
+#
+ifdef	NDEBUG
+DDEFS	= -DNDEBUG
+G	= -O
+else
+G	= -g
+endif
+#
+CFLAGS	:= $G $(CFLAGS) $(LDEFS) $(DDEFS)
+LDFLAGS	:= $G $(LDFLAGS)

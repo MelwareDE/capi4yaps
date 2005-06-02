@@ -1,0 +1,883 @@
+<HTML><Head><Title>
+yaps
+</Title></Head><Body>
+
+
+<H1>Table of Contents</H1>
+
+<Ol Compact>
+<Li> <a href="#intro">Introduction</a>
+<Li> <a href="#install">Installation</a>
+<Li> <a href="#config">Configuration</a>
+<Li> <a href="#cmdline">Command Line</a>
+<Li> <a href="#syntax">Sending/Expecting Syntax</a>
+<Li> <a href="#script">Scripting</a>
+<Li> <a href="#sample">Examples</a>
+<Li> <a href="#chlog">Changelog</a>
+</Ol>
+
+
+<H1 ID="intro">Introduction</H1>
+
+Welcome to <em>Yaps</em>, Yet Another Paging Package. The program is used
+to send textual messages to a remote paging device using a modem gateway.
+Many pager companies offer such modem gateways and are using specific
+protocols. The most often used one, TAP is implemented beside others (more
+or less complete.) This command line program uses a global and a private
+configuration file to get information about each paging service, installed
+modems and possibly other.<P>
+
+As the main part is implemented as a library it is not very complicated to
+write a client/server solution. For the legal status see the File
+<a href="COPYING.GPL">Copying</a>.
+
+
+<H1 ID="install">Installation</H1>
+
+The software is written, tested and designed on and for Unix(tm) like
+operating systems and requires the so called Posix system calls and function
+library. Gnumake and GCC are required, too (or some changes to the Makefile
+and the code may be neccessary.) It is known to run at least on following
+operating systems:
+<Ul Compact>
+<Li> <a href="http://www.linux.org/">Linux</a> (native system)
+<Li> <a href="http://www.sun.com/">Solaris 2.5.1</a> (Frank K&auml;fer)
+<Li> <a href="http://www.sun.com/">SunOS 4.1.3 aka Solaris 1.1</a> (Frank
+K&auml;fer)
+</Ul>
+(more may follow.)<P>
+
+Typically these steps should be enough to install the package:
+<Dl>
+<Dt> Edit Config
+<Dd> For GCC the settings of CC and CFLAGS should be okay. Define
+<strong>SLANG=True</strong>, if you like to use the SLang scripting
+language, which can be found on
+<a href="ftp://space.mit.edu/pub/davis/slang/">space.mit.edu</a>. Install it
+somewhere the compiler can find it. Define <strong>LUA=True</strong> for
+using the lua scripting language, which is located on
+<a href="ftp://ftp.icad.puc-rio.br/pub/lua">ftp.icad.puc-rio.br</a>. READ
+THE COPYRIGHT RELATED FILES OF EACH PACKAGE BEFORE INSTALLING IT!
+<Dt> Edit config.h
+<Dd> This is used to adapt the software to various variants of Unix(tm). If
+you do not have a regex.h file, either set HAVE_REGEX_T to zero or install
+the GNU regular expression library. Be sure the library and includefile can
+be found by the compiler and the name of the header file is
+<em>regex.h</em>, otherwise make a (symbolic) link to this file. Add the
+libary to <em>EXLIB =</em> in Config.
+<Dt> make depend
+<Dd> This create the dependency file which will be included during make.
+<Dt> make (or make all)
+<Dd> This compiles the library, the program driver and links the program.
+The documentation is created using lynx. As lynx is not on every system the
+already formated result is included as well.
+<Dt> make install
+<Dd> This copies the program and the global configuration file to the final
+location. This step requires a working <em>install</em> program. If this is
+missing, you have to install it by hand (well, two files should not be too
+much.)
+<Dt> Edit the global configuration file
+<Dd> With your favorite editor you should edit the global configuration file
+(which will be installed as <em>/etc/yaps.rc</em> on default) and change
+everything as required. See the <a href="#config">Configuration</a> section
+for a detailed description of the contents of the file.
+<Dt> Done!
+<Dd> You may play around with your configuration until you are satisfied,
+but this fine tuning is up to you.
+</Dl><P>
+
+If you have problems during compilation, feel free to send me a 
+<a href="mailto:yaps@nitmar.tnet.de">mail</a>.
+
+
+<H1 ID="config">Configuration</H1>
+
+The program reads first the global configuration file <em>/etc/yaps.rc</em>
+(when not overwritten by command line switch), then the local one in
+<em>~/.yapsrc</em> to get its configuration. Command line options may
+overwrite some settings in these files. Both configuration files have the
+same layout where the local one can overwrite settings of the global one.
+Each file is seperated in sections, where a section is started with
+<strong>[&lt;name&gt;]</strong> or <strong>[]</strong> for the global
+section. When a file is opened all entries are stored in the global section
+until a section name appears. If a section expression [..] is followed by a
+comma seperate list of names, then these are the fallback sections, i.e.
+variables not found int his section are taken from the fallback sections
+before trying the global one.<P>
+
+If the first character is a bar (<strong>|</strong>) then the rest is taken
+as a filename to be included at this point. The current section is
+<strong>NOT</strong> affected by this call.
+
+Each line may have exactly one entry (or a comment starting with a hash sign
+in the first column) where the variable name is seperated by whitespaces
+from its value. If the first character of the value is a backslash
+(<strong>\</strong>), then this is removed. This allowes creating values
+starting with whitespaces. But if a value should start with a backslash
+itself, be sure to escape it with another backslash. A line can split over
+several physical line, if each line (expect the last one) ends with a
+backslash. If the value starts with an opening curly bracket (<em>{</em>)
+then all lines up to the closing curly bracket (<em>}</em>) in the first
+column are taken as the value for that variable. The brackets (and the lines
+where they appear) are not part of the value.<P>
+
+The value may either be textual, numeric, boolean or a check expression.
+Textual values are starting with the first non whitespace character and
+continue to the end of the line. Numeric values are a sequence of digits
+which are parsed by the C-function <em>atoi(3)</em>. Boolean may either be
+<em>T</em>, <em>Y</em>, <em>1</em> or <em>+</em> for true and <em>F</em>,
+<em>N</em>, <em>0</em> or <em>-</em> for false (or in greater detail,
+everything that is not true is false.) Case is here not significant. The
+check is a sequence of special characters which must match the given string.
+If a <em>&gt;</em> is found, then the rest is optional, but must still
+match, if a <em>&lt;</em> is found and the string is not at its end, it is
+considered as too long. These characters are supported:
+<Ul Compact>
+<Li> <em>1</em> numeric
+<Li> <em>h</em> hexadecimal
+<Li> <em>l</em> lowercase
+<Li> <em>u</em> uppercase
+<Li> <em>a</em> alpha
+<Li> <em>n</em> alphanumeric
+<Li> <em>p</em> printable
+<Li> <em>x</em> ascii
+<Li> every other character matches every character
+</Ul>
+Some simple examples:
+<Ul Compact>
+<Li> <strong>&gt;1</strong> A string with unlimited length, but made only
+out of numeric values.
+<Li> <strong>aaa</strong> A string of exact three alpha characters.
+<Li> <strong>&gt;xxxx&lt;</strong> A string of length zero up to four made
+of ASCII characters.
+<Li> <strong>....&gt;1111&lt;</strong> A string starting with exact four
+characters, followed by zero to four numeric characters.
+</Ul>
+
+Alternative one can specify the check by a description, if the checkstring
+is prefixed by a plus sign. This is then a comma seperated list of checks,
+which are seperated by an equal sign into variable and value. These
+variables are supported:
+<Ul>
+<Li> <strong>type=&lt;type&gt;</strong> Each character in the string must
+match the type, which may be one of the following:
+     <Ul Compact>
+     <Li> <strong>numeric</strong> only digits are allowed.
+     <Li> <strong>sedecimal</strong> only hexdigits are allowed.
+     <Li> <strong>lower</strong> only lowercase characters are allowed.
+     <Li> <strong>upper</strong> only uppercase characters are allowed.
+     <Li> <strong>alpha</strong> only alpha characters are allowed.
+     <Li> <strong>alphanumeric</strong> only digits and alpha characters are
+	  allowed.
+     <Li> <strong>print</strong> only printable characters are allowed.
+     <Li> <strong>ascii</strong> only ASCII characters are allowed.
+     </Ul>
+<Li> <strong>length=&lt;length&gt;</strong> The string must have exact this
+length.
+<Li> <strong>minimum=&lt;length&gt;</strong> The string must at least this
+length.
+<Li> <strong>maximum=&lt;length&gt;</strong> The string must not be longer
+than this length.
+</Ul>
+<P>
+
+The global section defines global values or default values for other
+sections. Some section may not inherit these values, but currently there is
+only one and is marked as such.<P>
+
+<H2>Global section</H2>
+
+These are typical found in the global section and can be overwritten in
+other sections, if required.
+
+<Dl>
+<Dt> services &lt;text&gt;
+<Dd> This is the comma seperated list of available services.
+<Dt> call-id &lt;text&gt;
+<Dd> If the pager allows to send the source caller id this id is used, if
+not overwritten by a command line argument.
+<Dt> signature &lt;text&gt;
+<Dd> If this is present, then the text is appended to each message sent to
+the pager (and if use-signature is True).
+<Dt> verbose &lt;num&gt;
+<Dd> Sets the debugging/verbosity level. The bigger the number, the more
+output is generated.
+<Dt> logfile &lt;text&gt;
+<Dd> If the given text is a valid filename the status of a sending request
+is loged there.
+<Dt> <a ID="logstr"></a>logstring &lt;text&gt;
+<Dd> If this is present, then only these parts are logged, which match the
+given string. Currently these elements are supported:
+     <Ul Plain Compact>
+     <Li> <strong>+</strong> message had been trasmitted successfully
+     <Li> <strong>-</strong> message had not been transmitted
+     <Li> <strong>*</strong> part had been transmitted successfully
+     <Li> <strong>/</strong> part had not been transmitted
+     <Li> <strong>i</strong> informal logfile entry
+     <Li> <strong>c</strong> cost relevant informations
+     <Li> <strong>s</strong> session start
+     <Li> <strong>e</strong> session end
+     <Li> <strong>p</strong> protocol specific
+     </Ul>
+<Dt> modems &lt;text&gt;
+<Dd> This is a list of modem entries, seperated by commas.
+<Dt> final-report &lt;text&gt;
+<Dd> If this is set, a final report is written to the given filename. If
+filename is <strong>-</strong>, then it is written to stdout. This feature
+is intended for use in shell scripts, so the script could proof which
+message has actual send and which one has been rejected instead of simple
+rely on the return code of yaps.
+</Dl>
+
+<H2>Service section</H2>
+
+The names of these section are free to the user, but their contents describe
+a paging service (or a paging company.) Following variables are allowed for
+service sections:
+
+<Dl>
+<Dt> speed &lt;num&gt;
+<Dd> The speed of the serial device.
+<Dt> bits-per-byte &lt;num&gt;
+<Dd> The number of bits per byte, supported are 5 to 8.
+<Dt> parity &lt;text&gt;
+<Dd> The used parity, this may either be <em>n</em>one, <em>e</em>ven or
+<em>o</em>dd.
+<Dt> stopbits &lt;num&gt;
+<Dd> The number of stopbits, supported are 1 or 2.
+<Dt> phone &lt;text&gt;
+<Dd> The phone number of the modem gateway for this service. If the number
+contains <strong>%P</strong> and <em>insert-pager-id</em> is set, then the
+pagerid is inserted into the phonenumber.
+<Dt> protocol &lt;text&gt;
+<Dd> This is the communication protocol, that this service requires.
+Currently are <em>ascii</em>, <em>script</em>, <em>tap</em> and <em>ucp</em>
+allowed.
+<Dt> max-size &lt;num&gt;
+<Dd> The maximal length of a message for this service.
+<Dt> may-split &lt;bool&gt;
+<Dd> If this is true, then a message, which is too long will be split into
+several messages.
+<Dt> max-messages &lt;num&gt;
+<Dd> The maximum number of messages per message, that can be send. If this
+is zero, then an unlimited number of messages can be send.
+<Dt> truncate &lt;bool&gt;
+<Dd> If this is set a message is not split, but truncated to the length
+allowed by the provider.
+<Dt> use-call-id &lt;bool&gt;
+<Dd> If this is true, then the caller-id is inserted. Where it is insert is
+protocol specific.
+<Dt> use-signature &lt;bool&gt;
+<Dd> If this is true and a signature is given, this is appended to each
+message.
+<Dt> insert-pager-id &lt;bool&gt;
+<Dd> If this is true, then the pagerid is inserted as part of the phone
+number. This implies, that only messages to the same receipiant can be send
+at one call.
+<Dt> rm-invalids-cid &lt;text&gt;
+<Dd> Remove every character in <em>text</em>, that appears in the caller id.
+This is designed to make a caller id more readable, but still useable by the
+desired service.
+<Dt> rm-invalids-pid &lt;text&gt;
+<Dd> Dito for pager ids.
+<Dt> valid-pid &lt;text&gt;
+<Dd> This is a regular expression to check wether a pager-id is valid for
+this service. If your system does not support Posix regular expression, you
+can use a simple replacement. This is just a list of strings, seperated by a
+bar which must match the beginning of the pager-id.
+<Dt> change-pid &lt;text&gt;
+<Dd> If the pager-id matches the regular expression of <em>valid-pid</em>,
+then this matching part is replaced with this string. If the string is just
+a minus (<em>-</em>), then the match is removed from the resulting pager-id.
+<Dt> valid-cid &lt;text&gt;
+<Dd> The same like <em>valid-pid</em> for the caller id.
+<Dt> change-cid &lt;text&gt;
+<Dd> The same like <em>change-pid</em> for the caller id.
+<Dt> conv-table &lt;text&gt;
+<Dd> The value is a filename to a character conversion table. This affects
+only the message (and depending on the protocol the pagerid) and allows
+transforming illegal characters to valid ones.
+<Dt> convert &lt;text&gt;
+<Dd> This is comma seperated list of direct change entries of the convertion
+table. If you want to include more than one pair, the block construct using
+curly brackets (<em>{..}</em>) must be used. Each line contains a source and
+a destination character, i.e. if the source character is encountered in a
+message, the destination character is used for it. There are also some
+predefined convertion rules, which all starts with an asterisk:
+     <Ul Compact>
+     <Li> <strong>*no-control</strong> control characters are suppressed
+     <Li> <strong>*control</strong> control characters are inserted literal
+     <Li> <strong>*no-8bit</strong> no characters with 8'th bit set are
+          included
+     <Li> <strong>*8bit</strong> use also characters with 8'th bit set.
+     <Li> <strong>*numeric</strong> only numeric characters are allowed.
+     </Ul>
+<Dt> cost &lt;text&gt;
+<Dd> This string is used to calculate the costs for each call. The
+description is a comma seperated list of variables with equal sign seperated
+optional value. These variables are currently implemented:
+     <Dl Compact>
+     <Dt> fixed
+     <Dd> This tells the software, that the cost are fixed per call, i.e.
+	  no real calculation takes place according to the used entities.
+     <Dt> entity-length=&lt;entity&gt;
+     <Dd> This is the length of one entity. This is interpreted as a
+	  floating point number.
+     <Dt> max-entities=&lt;count&gt;
+     <Dd> Some providers only charge until a maximum of entites had
+	  been used and stop then charging.
+     <Dt> dial-overhead=&lt;seconds&gt;
+     <Dd> The counter starts before dialing. Typically it takes some
+	  time from dialing to the first billed entity. This time can
+	  be specified using this variable.
+     <Dt> cost=&lt;cost&gt;
+     <Dd> This is the cost per entity (or the whole cost on fixed charging
+	  services). This is a floating point number.
+     <Dt> unit=&lt;string&gt;
+     <Dd> This string is appended in the logfile for the currency. This is
+	  only of cosmetic value.
+     <Dt> remainder=&lt;digits&gt;
+     <Dd> This is the number of digits after the point in the cost display.
+	  This value is typical two.
+     <Dt> timetable=&lt;description&gt;
+     <Dd> If a timetable entry is given, then the cost are calculated
+	  depending on weekday and time. On fixed charging services the
+	  value describes the complete costs for the call, in the other
+	  case the value is the entity-length for this day/time. The
+	  description is a semi-colon seperated list of single entries of
+	  the form:<BR>
+<strong>&lt;Weekday(s)&gt;&lt;from&gt;-&lt;to&gt;=&lt;value&gt;</strong><BR>
+	  Each weekday is a two letter sequence (So, Mo, Tu, We, Th, Fr, Sa)
+	  and there are three special &quot;weekdays&quot;: <em>Wk</em> for
+	  working days (monday to friday), <em>Ss</em> for weekend
+	  (saturday and sunday) and <em>al</em> for all days. A typical
+	  example may look like:
+	  <strong>Wk0800-1800=12;Wk1800-0800=24;Ss=24</strong>, but this
+	  could be written shorter as:
+	  <strong>=24;Wk0800-1800=12</strong> because the first entry is
+	  taken as the default, if no match is found. And the construct
+	  <em>=24</em> does not contain any weekday, so it is invalid for
+	  any regular check.
+     </Dl>
+<Dt> force &lt;bool&gt;
+<Dd> If a feature is requested, but this service do not support it, the
+message will still be delivered, if this variable is set to True.
+<Dt> can-delay &lt;bool&gt;
+<Dd> Set this to True, if the service provider accepts a delay for sending
+the message.
+<Dt> can-expire &lt;bool&gt;
+<Dd> Set this to True, if the service provider allowes the setting of an
+expiration timestamp.
+<Dt> can-rds &lt;bool&gt;
+<Dd> Set this to True, if the service provider allowes the request for a
+delivery status.
+<Dt> rds &lt;bool&gt;
+<Dd> Set this to True, if <em>can-rds</em> is True and you always want to
+get a delivery status.
+<Dt> check-call-id &lt;check&gt;
+<Dd> The caller id must match the <strong>check</strong> expression.
+<Dt> check-pager-id &lt;check&gt;
+<Dd> Each pager id must match the <strong>check</strong> expression.
+</Dl>
+
+<H2>Modem section</H2>
+
+Each modem should have its own section. Following entries are currently
+supported:
+
+<Dl>
+<Dt> device &lt;text&gt;
+<Dd> The filename for the device where the modem is attached to.
+<Dt> lock-prefix &lt;text&gt;
+<Dd> This is the pathname to prefix the basename of the modemdevice to
+create lockfiles. This can be used to enable more than one application to
+use the modem.
+<Dt> lock-method &lt;text&gt;
+<Dd> This is a comma seperated list of locking mechanism. Currently these
+flags are supported:
+     <Ul Compact>
+     <Li> <em>ascii</em> PID is stored as ASCII text in lockfile.
+     <Li> <em>binary</em> PID is stored in machine representation in
+	  lockfile. 
+     <Li> <em>lower</em> converts device part of lockfile to lower case.
+     <Li> <em>upper</em> converts device part of lockfile to upper case.
+     <Li> <em>sysv4</em> append SysV4 style infos to lockfile instead of the
+	  basename of the device.
+     <Li> <em>timeout=&lt;secs&gt;</em> tries to lock the device
+	  <strong>secs</strong> seconds.
+     </Ul>
+<Dt> init &lt;text&gt;
+<Dd> This is the init sequence to initialize the modem.
+<Dt> dial &lt;text&gt;
+<Dd> This is the dial sequence to dial a phone number with the modem. An
+<strong>\L</strong> in the string will be replaced by the phone number.
+<Dt> timeout &lt;num&gt;
+<Dd> This is the default timeout to wait for responses of the modem.
+<Dt> reset &lt;text&gt;
+<Dd> This is the sequence to reset the modem.
+<Dt> local-init &lt;text&gt;
+<Dd> This is used to customize an existing modem entry for different purpose
+(e.g. force a specific connect rate, etc.)
+</Dl>
+
+Beside this the section may contain protocol specific entries to adapt the
+protocol for this service.
+
+<H2>ASCII based protocol</H2>
+
+A <strong>\C</strong> is replaced with the caller id, if available. If
+request a delivery report is switched on, a <strong>\R</strong> is replaced
+with <em>1</em>, else with <em>0</em>.
+
+<Dl>
+<Dt> asc-timeout &lt;num&gt;
+<Dd> This is the default timeout for sequences when communicating with the
+remote side.
+<Dt> asc-login &lt;text&gt;
+<Dd> This is the sequence to login to the remote service.
+<Dt> asc-logout &lt;text&gt;
+<Dd> This is the sequence to logout from the remote service.
+<Dt> asc-pagerid &lt;text&gt;
+<Dd> This is the sequence to embedded the pager id to be sent.
+<strong>\P</strong> is replaced with the pager id.
+<Dt> asc-message &lt;text&gt;
+<Dd> Dito for the message, <strong>\M</strong> is replaced with the message.
+<Dt> asc-next &lt;text&gt;
+<Dd> This is the sequence to start the next transmission.
+<Dt> asc-sync &lt;text&gt;
+<Dd> If we get out of sync, then this sequence should bring us back to a
+stage as if we had just loged in.
+</Dl>
+
+<H2>Script specific</H2>
+
+<Dl>
+<Dt> script-type &lt;text&gt;
+<Dd> This is the scripting language to choose. Currently these are
+supported: <strong>SLang</strong>, <strong>Lua</strong>.
+<Dt> script-name &lt;text&gt;
+<Dd> This is the name (e.g. the name of the variable containing) the script.
+If the name starts with a slash or a plus sign, then the value is treated as
+a filename from where the script should be read. The plus sign is stripped
+off before opening the file.
+<Dt> scr-login &lt;text&gt;
+<Dd> This is the function/label where to start at login. If the caller id is
+available (and the language supports it) the caller id is passed as an
+argument.
+<Dt> scr-logout &lt;text&gt;
+<Dd> Dito for logout.
+<Dt> scr-pagerid &lt;text&gt;
+<Dd> Dito for sending the pagerid. The pagerid is passed as an argument.
+<Dt> scr-message &lt;text&gt;
+<Dd> Dito for sending the message. The message is passed as an argument.
+<Dt> scr-next &lt;text&gt;
+<Dd> Dito to go to the next message.
+<Dt> scr-sync &lt;text&gt;
+<Dd> Dito to sync to a definite state (i.e. as if we had just loged in.)
+</Dl>
+
+<H2>TAP specific</H2>
+
+<Dl>
+<Dt> tap-t1, tap-t2, tap-t3, tap-t4, tap-t5 &lt;num&gt;
+<Dd> This is the timeout for each stage defined in the TAP specification.
+See 
+<a href="http://www.mot.com/MIMS/MSPG/pcia_protocols/tap_v1p8/timing_retry_parameters.html#params">
+there</a>
+for details.
+<Dt> tap-n1, tap-n2, tap-n3 &lt;num&gt;
+<Dd> This is the retry count for each stage defined int the TAP
+specification. See 
+<a href="http://www.mot.com/MIMS/MSPG/pcia_protocols/tap_v1p8/timing_retry_parameters.html#params">
+there</a>
+for details.
+<Dt> tap-login-count &lt;num&gt;
+<Dd> This is the number of tries to login to the remote service.
+<Dt> tap-logout-count &lt;num&gt;
+<Dd> This is the number of tries to logout from the remote service.
+</Dl>
+
+<H2>UCP specific</H2>
+
+<Dl>
+<Dt> ucp-timeout &lt;num&gt;
+<Dd> This is the time to wait for an answer from the remote system. The
+documentation says that this could be about 40 to 60 seconds. This depends
+on the provider.
+<Dt> ucp-retry &lt;num&gt;
+<Dd> This specifies how often a message should be sent, until the program
+gives up.
+<Dt> ucp-extend &lt;bool&gt;
+<Dd> If this is True then the extend UCP implementation is used, i.e. the
+more complex, but more flexibel protocol (currently only possible on german
+cellular phone provider Mannesmann D2.)
+<Dt> ucp-ds-timeout &lt;num&gt;
+<Dd> Wait a maximum of this value seconds for receiving of the delivery
+status.
+</Dl>
+
+<H2>Alias section</H2>
+
+The entries in this section are not able to access the global entries. Each
+entry contains an alias name with its real number.
+
+
+<H1 ID="cmdline">Command Line</H1>
+
+Yaps support several command line parameter which can overwrite the possibly
+used default values in the configuration files. Following options are
+understood by this program (on some systems, there are is also support for
+long options):
+
+<Dl>
+<Dt> -C &lt;configfile&gt;, --config=&lt;configfile&gt;
+<Dd> Use <strong>cfgfile</strong> instead of the default global
+configuration file <em>/etc/yaps.rc</em>.
+<Dt> -s &lt;service&gt;, --service=&lt;service&gt;
+<Dd> Use paging service <strong>service</strong> instead of the default of
+the configuration file.
+<Dt> -t, --truncate
+<Dd> If this is set, then a message is truncated, if it is longer than the
+allowed limit of the choosen service.
+<Dt> -c &lt;callid&gt;, --call-id=&lt;callid&gt;
+<Dd> Use <strong>callid</strong> as the caller id.
+<Dt> -S &lt;signature&gt;, --signature=&lt;signature&gt;
+<Dd> If signature appending is enabled by the service, use this string as
+the signature.
+<Dt> -l &lt;logfile&gt;, --logfile=&lt;logfile&gt;
+<Dd> Write status of transmission to <strong>logfile</strong>.
+<Dt> -L &lt;logstr&gt;, --logstring=&lt;logstr&gt;
+<Dd> This is used to select the messages written to the logfile. See 
+<a href="#logstr">above</a> unter the configuration entry
+<em>logstring</em> for a detailed description.
+<Dt> -f, --force
+<Dd> Force sending of messages, even if -d/-e/-r is not supported by the
+service.
+<Dt> -d &lt;date&gt;, --delay=&lt;date&gt;
+<Dd> If the service supports it, the message is delayed and sent at
+<strong>date</strong>.
+<Dt> -e &lt;date&gt;, --expire=&lt;date&gt;
+<Dd> If the service supports it, the message is deleted, if this date is
+reached and the message had not been transmitted until then.
+<Dt> -r, --request-delivery-status
+<Dd> If the service supports it, a delivery status is requested.
+<Dt> -R &lt;fname&gt;, --final-report=&lt;fname&gt;
+<Dd> A final report is written to <em>fname</em> (or stdout, if fname is
+<strong>-</strong>.) This feature is useful to check which message had been
+delivered successfully or not.
+<Dt> -z &lt;fname&gt;, --message-file=&lt;fname&gt;
+<Dd> Reads pager-ids and messages form <em>fname</em>. Each line contains
+one pair, seperated by whitespace(s).
+<Dt> -v, --verbose
+<Dd> Increase the verbosity of yaps, more -v's give more debug output.
+<Dt> -p, --print-config
+<Dd> This is used to printout configuration values for testing purpose. The
+remaining paramters are variables to print out with their value.
+</Dl>
+
+Following the options the user has to give receiver/message pairs, all using
+the same service. A receiver is either the pager id itself or an alias. If
+the first character is a colon, then the colon is cut off and the remaining
+part is taken as an alias, if the first character is a slash, it is cut off
+as well and the remaining is taken as the pager id. If the first character
+is a digit, it is taken as a pager id, otherwise as an alias. It is possible
+to specify multiple receiver, if the receiver is a comma seperate list of
+individual receivers. If the first character of the message is a plus sign,
+then the remaining message is treated as a filename and the real message is
+read from this file. If the message is just a minus (<strong>-</strong>),
+then the message is read from stdin, if it is just a dot
+(<strong>.</strong>), then the message is empty.<P>
+
+The options <em>-d</em> and <em>-e</em> accept a date representation which
+must be (according to option parsing) one argument, e.g. if it contains
+spaces it must be quoted. If the first character of date is a plus
+(<strong>+</strong>) sign, then the date is taken as an offset to the
+current time. All further definitions are seperated by spaces:
+<Ul>
+<Li> &lt;hour&gt;<strong>:</strong>&lt;min&gt;<strong>:</strong>&lt;sec&gt;
+<Li> &lt;day&gt;<strong>.</strong>&lt;month&gt;<strong>.</strong>&lt;year&gt;
+<Li> &lt;month&gt;<strong>/</strong>&lt;day&gt;<strong>/</strong>&lt;year&gt;
+<Li> &lt;numeric&gt; if less than 30 is taken as the hour
+<Li> &lt;numeric&gt; if greater or equal than 30 is taken as minutes
+</Ul>
+
+
+<H1 ID="syntax">Sending/Expecting Syntax</H1>
+
+Whenever communication over the serial line takes place the send/expect
+functions are comming into play. There are three important functions, which
+are called from several parts: sending of data, expecting data and a
+send/expect function. Each is explained in detail here (including the
+supported syntax):
+
+<H2>Sending</H2>
+
+Sending itself is nothing fancy, just all data will be written to the serial
+line.
+
+<H2>Expecting</H2>
+
+Expecting means to wait for some pattern to arrive. It is possible to expect
+more than one sequence and the function returns the matching entry, a
+timeout or an error condition.
+
+<H2>Send/Expect</H2>
+
+Most communication parts call this function (which then calls the functions
+above.) This function requires a string with tokens seperated by
+whitespaces. A token may contain whitespaces, if the token is enclosed in
+single or double quotes. These quotes (as any other quotes) are removed
+during the preparse. The first character of the token is relevant for the
+method to be executed. Each token is preparsed to remove/interpret special
+characters. Following special characters are interpreted:
+
+<Ul Compact>
+<Li> Backslash <strong>\</strong><BR>
+The backslash is used to escape any other special character (inclusive
+quotes and the backslash itself) or to insert typical control characters.
+These are supported:
+     <Ul>
+     <Li> \a -&gt; Bel
+     <Li> \b -&gt; Bs
+     <Li> \f -&gt; Ff
+     <Li> \l -&gt; Lf
+     <Li> \n -&gt; Nl (system depended)
+     <Li> \r -&gt; CR
+     <Li> \s -&gt; Space
+     <Li> \t -&gt; Tab
+     </Ul>
+<Li> Up arrow <strong>^</strong><BR>
+This is used to insert control characters, e.g. ^M means CR.
+<Li> Percent <strong>%&lt;nr&gt;</strong><BR>
+This inserts optional paramter <strong>nr</strong>, if supplied.
+</Ul><P>
+
+These character initiate the behaviour of the token:
+<Dl>
+<Dt> <strong>&lt;</strong> Expect
+<Dd> The rest of the token is for expecting. If the token contains
+<strong>-</strong> then the token is split again and each subtoken is
+treated as expect/send, if the expect failed. The expect token may be
+seperated by <strong>|</strong> to indicate alternatives. The expect is
+failed, if an error occurs, a timeout arised or not the first alternatives
+matches. The <strong>&lt;</strong> may be appended by a numeric value, which
+is used as the timeout in seconds.
+<Dt> <strong>!</strong> Command
+<Dd> To insert dynamic commands into the sequence use this construct.
+Following is an optional numeric value <strong>n</strong> and a command
+character. If <strong>n</strong> is not set, its default value is one.
+Following characters are supported:
+     <Ul>
+     <Li> d - sleep <strong>n</strong> seconds
+     <Li> D - sleep <strong>n</strong> miliseconds
+     <Li> b - send break (length depends on <strong>n</strong> and the
+	  implementation)
+     <Li> h - hangup the line (lowering DTR by <strong>n</strong> * 0,5
+	  seconds.)
+     <Li> o - waits for output to drain
+     <Li> &lt; - flushes the input queue
+     <Li> &gt; - flushes the output queue
+     <Li> f - forces the sequence to fail
+     <Li> s - forces the sequence to succeed
+     </Ul>
+<Dt> Any other character
+<Dd> This string is just send to the remote side.
+</Dl>
+
+
+<H1 ID="script">Scripting</H1>
+
+Scripting has the advantage (compared to the ASCII protocol) that one is
+more flexible. As there are a lot of scripting languages around, there will
+be no specific one for this package. As long as such a language is
+embeddable into C programs, it should not be too complicate to integrate it
+into this package.<P>
+
+This section explains the additional function (or simular) for the available
+scripting languages. The syntax itself is explained in the distribution of
+each scripting package.
+
+<H2>SLang</H2>
+
+Beside the new functions there is an extension to the string class, so you
+can use (beside others) the plus sign to concaternate strings. One time this
+part should make its way into the main SLang distribution.
+
+<H3>Variable index</H3>
+
+<Dl>
+<Dt> int NO_ERR;
+<Dd> This is the return value for a function, that ended successful.
+<Dt> int ERR_FAIL;
+<Dd> This is the return value for a function, that encountered an error, but
+which allowes the script to continue.
+<Dt> int ERR_FATAL;
+<Dd> Dito, but the script should not continue any more.
+<Dt> int ERR_ABORT;
+<Dd> Dito, but no further action should take place.
+<Dt> int rds;
+<Dd> Is set to <em>True</em>, if a delivery status should be requested.
+<Dt> int delay_day, delay_mon, delay_year, delay_hour, delay_min, delay_sec;
+<Dd> This is the time/date to delay the delivery of the message.
+<Dt> int expire_day, expire_mon, expire_year, expire_hour, expire_min, expire_sec;
+<Dd> This is the time/date to expire a buffered message.
+<Dt> int False;
+<Dd> The numeric value for False.
+<Dt> int True;
+<Dd> Dito for True.
+</Dl>
+
+<H3>Function index</H3>
+
+<Dl>
+<Dt> void setcb (string func, string sep);
+<Dd> This enable the line callback facility and stores each line into a
+local variable, which will be overwritten after each new encountered line. A
+line is considered as complete, if one character in <strong>sep</strong> is
+received. If <strong>func</strong> is the name of a defined function, then
+this function is called on every completed new line. The line is passed as
+the paramter to this function.
+<Dt> void clrcb (void);
+<Dd> Clears the line callback facility.
+<Dt> string line (void);
+<Dd> Returns the last complete read in line, if the line callback facility
+is enabled.
+<Dt> void hangup (void);
+<Dd> Tries to hangup, if the modem is currently off-hook. This is done by
+lowering the DTR line.
+<Dt> int send (string str);
+<Dd> Sends the string to the remote side. Returns <strong>True</strong> on
+success, <strong>False</strong> otherwise.
+<Dt> int csend (string str);
+<Dd> Dito, but the string is converted before it is sended to the remote
+side.
+<Dt> int expect (int tout, string str1, ..., string strn, int cnt);
+<Dd> The function waits <strong>tout</strong> seconds until one of the
+strings is received. If no string is received, <strong>0</strong> is
+returned, <strong>-1</strong> on error. Otherwise the number of the string
+is returned (<strong>1</strong> for <strong>str1</strong>,
+<strong>2</strong> for <strong>str2</strong>, etc). <strong>cnt</strong> is
+the number of strings to wait for.
+<Dt> int send_expect (int tout, string expr);
+<Dd> This function executes the <strong>expr</strong> with its internal
+send/expect evaluater and returns <strong>True</strong>, when the sequence
+had been executed completely, otherwies <strong>False</strong>.
+<Dt> void drain (int secs);
+<Dd> This function reads and discards any character for
+<strong>secs</strong> seconds.
+<Dt> void cvdef (int src, int dst);
+<Dd> Defines a converion rule. Every character <strong>src</strong> will be
+replaced by <strong>dst</strong>. The conversion is used in <em>csend()</em>.
+<Dt> void cvundef (int ch);
+<Dd> Undefines the conversion rule for <strong>ch</strong>.
+<Dt> void cvinval (int ch);
+<Dd> Marks the character <strong>ch</strong> as invalid.
+<Dt> string conv (string str);
+<Dd> Converts the string <strong>str</strong> using the defined conversion
+rules and returns the converted string.
+</Dl>
+
+<H2>Lua</H2>
+<!-- TODO! -->
+
+
+<H1 ID="sample">Examples</H1>
+
+Here are some examples that may help you to understand the software a bit
+better. First you should read the example configuration file 
+<a href="yaps.rc">yaps.rc</a>. This could be used as a base for your own
+global configuration file.
+
+<H2>Calling</H2>
+
+Typically the program is called <strong>yaps &lt;pagerid&gt;
+&lt;message&gt;</strong>. <em>pagerid</em> is either the exact pagerid of
+the receiver or an alias found in the alias section. <em>message</em> is the
+message to send by itself. If a pager-id leads to more than one provider,
+then the first is used. To force a special service use the <strong>-s
+&lt;service&gt;</strong> switch.
+
+<H2>Script protocol</H2>
+
+In the contrib directory, you can find <a href="contrib/tap.sl">tap.sl</a>,
+an example on how to use the scripting facility to emulate a protocol. This
+is a minimal, but working reimplemetation of TAP.
+
+<H1 ID="chlog">Changelog</H1>
+
+This is a list of changes:
+<Ul Plain>
+<Li> 9. May 1997: V 0.90 released
+     <Ul Compact>
+     <Li> Minor cleanup on calling sending routines
+     <Li> Added optional multiple receiver per message
+     <Li> Changing UCP to prepare the real implementation
+     <Li> Preparing the creation of a client/server solution
+     <Li> Compile configuration moved to seperate file 
+     </Ul>
+<Li> 13. May 1997: V 0.91 released
+     <Ul Compact>
+     <Li> Converted `char *' to `string_t *' in several places
+     <Li> Added max-messages configuration option
+     <Li> Moved some configuration stuff to config.h
+     <Li> Got UCP docu! Implemented it partial (as much as it makes sense)
+     <Li> Added option -d/-e as UCP (in extended mode) can support it
+     <Li> Added special date handling functions for this purpose
+     <Li> Changed copyright to the GPL
+     <Li> Use transparent data in extended UCP, if characters with
+          set 8th bit are found
+     <Li> Better message splitting
+     <Li> Added some sanity checks
+     </Ul>
+<Li> 22. May 1997: V 0.92 released
+     <Ul Compact>
+     <Li> Added handling of configuration variants
+     <Li> Added include option in configuration files
+     <Li> First bugs encountered by tester fixed
+     <Li> Message can now be read from stdin, if message == '-'
+          (idea by &lt;markus@mail.yezz.de&gt;)
+     <Li> Message can now be empty, if message == '.'
+     <Li> Minor bugfixing/Makefilehandling (reported by Frank K&auml;fer)
+     <Li> Enhanced lockfile handling, including SysV4 lockfiles (inspirated
+	  by Frank K&auml;fer)
+     <Li> Total rewrite of UCP sending
+     </Ul>
+<Li> 26. May 1997: V 0.93 released
+     <Ul Compact>
+     <Li> UCP works again including delivery report
+     <Li> Added checking of pager id for a service
+     <Li> Added signature in configuration file
+     <Li> Added value start escaping with backslash
+     <Li> Changed checking of pager id for service
+     <Li> Automatic assign of a pager id to a service
+     <Li> Could now handle more than one service at one call
+     </Ul>
+<Li> 30. May 1997: V 0.94 released
+     <Ul Compact>
+     <Li> Workaround for serial bug in sunos/solaris (by Frank K&auml;fer)
+     <Li> If the system does not support Posix regular expression, a simple
+          replacement is added
+     <Li> More comments in yaps.rc (as wished by Frank K&auml;fer ;-)
+     <Li> Change handling of control chars in TAP/pre V1.6 (hint by
+          &lt;markus@mail.yezz.de&gt;)
+     <Li> Added default conversion rules
+     <Li> Added force/-f
+     <Li> Added long options support
+     <Li> Added getopt() for systems without this function
+     <Li> Added valid-cid/change-cid/rm-invalids-cid/rm-invalids-pid
+     </Ul>
+<Li> 3. June 1997: V 0.95 released
+     <Ul Compact>
+     <Li> Added final status report
+     <Li> Added a 2nd checking scheme
+     <Li> Added support for lua (another scripting language)
+     <Li> Removed porting approach, should be done by someone who
+	  has access to such an OS.
+     <Li> Added reading of pager-id/message pairs from file
+     <Li> Added cost calculation
+     <Li> Enhanced logfile handling
+     </Ul>
+<Li> 14. June 1997: V 0.96 released
+</Ul>
+
+</Body></HTML>

@@ -1,0 +1,113 @@
+		yaps  -or- Yet Another Pager Software
+		=====================================
+
+This software is primary designed to send message to so called pager devices
+including cellular phones which are able to receive textual messages
+(sometimes called SMS, short message system/service.)
+
+This is a simple command line driven program with a global and a personal
+configuration file, but the protocol implementation is kept as a seperate
+library, with which one may somedays write a client/server system.
+
+Copyright:
+~~~~~~~~~~
+ Copyright (c) 1997 Ulrich Dessauer
+ All rights reserved.
+ 
+ You may distribute under the terms of the GNU General Public
+ License.
+
+ IN NO EVENT SHALL ULRICH DESSAUER BE LIABLE TO ANY PARTY FOR DIRECT,
+ INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF
+ THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF ULRICH DESSAUER
+ HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+ ULRICH DESSAUER SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS ON AN "AS IS"
+ BASIS, AND ULRICH DESSAUER HAS NO OBLIGATION TO PROVIDE MAINTENANCE,
+ SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
+Installation:
+~~~~~~~~~~~~~
+You need a system supporting the Posix system calls and library functions
+(every modern Unix like OS should have this support) and you need an install
+program, otherwise you have to install the result by hand. Gnumake and GCC
+are a plus, otherwise you may have to tweak the Makefile and some source
+files a bit.
+
+1.) Edit Config (which will be included by make) & edit config.h
+1a.) If you do not have the SLang library installed, comment out
+     the line `SLANG = True' in Config or install it somewhere
+     the compiler can find it (/usr/local/{lib,include} seems to
+     be a not-to-bad place). READ THE ATTACHED COPYRIGHT NOTICE!
+1b.) Dito for lua.
+2.) Edit config.h. Comments should explain enough.
+3.) `make depend'
+4.) `make'
+
+  If the program compiles fine:
+5.) `make install' as root (if you have permissons). If you do not have
+    an install program, install it by hand:
+    a.) Copy the executable `yaps' to somewhere in your path
+    b.) Install yaps.rc as /etc/yaps.rc or as ~/.yapsrc
+6.) edit `/etc/yaps.rc' for global settings
+7.) Optional edit ~/.yapsrc for your private settings
+
+An example `yaps.rc' file is included and can be used directly for some
+services available in Germany. Others may be added. See the `yaps.doc' file
+for a complete description of the configuration files.
+
+Implementation:
+~~~~~~~~~~~~~~~
+The current implementation allows sending messages to pager, where the
+service company offers a modem gateway. Paging via Internet or other online
+services is currently not supported, as they are mostly quite simple to
+realize (sending an e-mail to a specific address, calling an URL, etc.)
+
+Following protocols are implemented:
+- ASCII based. This could also be handled by programs like `chat', but is
+  included for completness. You can use simple send/expect strings to define
+  the communication.
+
+- SCRIPT based. This could be considered as an enhanced ASCII mode and
+  depends on the available scripting languages, that are integrated.
+  Currently SLang and Lua are supported, others may follow.
+
+- TAP (Telocator Alphanumeric Protocol). This is the result of the earlier
+  used IXO and PET protocols. The documentation for this protocol is
+  available via the Web: 
+  http://www.mot.com/MIMS/MSPG/pcia_protocols/tap_v1p8/table_of_contents.html
+  (Thanks a lot to Motorola!)
+  
+- UCP (Universal Computer Protocol). D2privat has kindly made the
+  description available to me, thanks a lot to Mannesmann Mobilfunk! Lots of
+  the protocol is NOT implemented, as this makes not much sense on dialup
+  lines.
+
+ATTENTION: If someone has the complete documentation for any other used
+protocol for pager like devices, I would be glad if she/he could make them
+available for me. If I had a testing possibility I'll try to implement that
+protocol.
+
+Bugs, Problems, Comments:
+~~~~~~~~~~~~~~~~~~~~~~~~~
+Please send any bug report, any encountered problem (with a detailed
+description as possible) and any comments to <yaps@nitmar.tnet.de> or
+<ud@cube.net>.
+
+Files:
+~~~~~~
+README:				This file
+COPYING.GPL, COPYRIGHT:		About distributing the software
+INSTALL:			A pointer into the README file
+BUGREPORT:			How to report a bug
+Makefile, Config:		Make rules
+yaps.rc:			Sample configuration file
+yaps.c:				The driver program
+valid.c, valid.h:		Support routines for the driver program
+remaining *.c, *.h:		The paging library
+yaps.html, yaps.doc:		Documentation in HTML and plain text
+yaps.1:				A minimal manual page
+yaps.lsm:			The Linux Software Map entry
+contrib/:			Files not supported by the author
