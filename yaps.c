@@ -22,7 +22,7 @@
 # include	"valid.h"
 /*}}}*/
 /*{{{	general definitions */
-# define	VERSION		"0.96 (alpha software)"
+# define	VERSION		"0.96.c2 (alpha software, CAPI support V2)"
 
 # ifndef	LIBDIR
 # define	LIBDIR		NULL
@@ -389,7 +389,10 @@ do_dial (void *cfg, char *service, char *pagerid, char **modem)
 				s2 = p2;
 				p2 = skipch (p2, ',');
 				V (3, ("Trying to open %s for modem %s\n", s2, sav));
-				if (sp = tty_open (s2, lckpre, lckmethod)) {
+				if (device_is_capi(s2)) {
+					if (sp = hyla_capi_init(s2))
+						break;
+				} else if (sp = tty_open (s2, lckpre, lckmethod)) {
 					if (tty_setup (sp, True, True, rspeed, bpb, sb, parity) != -1) {
 						if (! (n = setjmp (env))) {
 							dojump = True;
@@ -425,7 +428,20 @@ do_dial (void *cfg, char *service, char *pagerid, char **modem)
 				s2 = p2;
 				p2 = skipch (p2, ',');
 				siz = strlen (dial) + strlen (phone) + 64;
-				if (tmp = malloc (siz + 2)) {
+				if (hyla_is_capi(sp)) {
+					if ((!dial) || (!isdigit(*dial)))
+						dial = "";
+					V (3, ("Trying do dial %s%s\n",
+						(dial) ? dial : "", s2));
+					if (hyla_capi_connect(sp, dial, s2)) {
+						V (1, ("Dial successful\n"));
+						while (*p2)
+							++p2;
+					} else {
+						if (!*p2)
+							sp = hyla_capi_close(sp);
+					}
+				} else if (tmp = malloc (siz + 2)) {
 					for (n = 0, m = 0; dial[n]; ) {
 						if (dial[n] == '%') {
 							++n;
@@ -1130,7 +1146,7 @@ remove_invalids (char *str, char *rmv)
 
 static message *
 create_messages (void *cfg, char *service, serv *sbase, char **argv, int argc, char *mfile, int *mcnt,
-		 char *callid, char *sig, Bool trunc, Bool force, date_t *delay, date_t *expire, Bool rds)
+		 char *callid, char *sig, Bool ytrunc, Bool force, date_t *delay, date_t *expire, Bool rds)
 {
 	char		**recv;
 	int		rcnt, rsiz;
@@ -1430,14 +1446,14 @@ create_messages (void *cfg, char *service, serv *sbase, char **argv, int argc, c
 	}
 	for (n = 0; n < cnt; ++n) {
 		sr = mg[n].service;
-		if (! trunc)
+		if (! ytrunc)
 			ttrunc = cfg_bget (cfg, sr, CFG_TRUNCATE, False);
 		else
-			ttrunc = trunc;
+			ttrunc = ytrunc;
 		msize = cfg_iget (cfg, sr, CFG_MAXSIZE, 0);
 		msplit = cfg_bget (cfg, sr, CFG_MAYSPLIT, False);
 		if ((msize > 0) && (mg[n].msg -> len > msize))
-			if (trunc)
+			if (ytrunc)
 				mg[n].msg -> len = msize;
 			else if (! msplit) {
 				fprintf (stderr, "Unable to split message for service %s\n", sr);
@@ -2168,7 +2184,7 @@ main (int argc, char **argv)
 	serv		*sbase, *sprev, *stmp;
 	char		*chk;
 	char		*service;
-	Bool		trunc;
+	Bool		ytrunc;
 	char		*callid;
 	char		*sig;
 	Bool		force;
@@ -2191,7 +2207,7 @@ main (int argc, char **argv)
 
 	cfgfile = CFGFILE;
 	service = NULL;
-	trunc = False;
+	ytrunc = False;
 	callid = NULL;
 	sig = NULL;
 	force = False;
@@ -2219,7 +2235,7 @@ main (int argc, char **argv)
 			service = optarg;
 			break;
 		case 't':
-			trunc = True;
+			ytrunc = True;
 			break;
 		case 'c':
 			callid = optarg;
@@ -2373,7 +2389,7 @@ main (int argc, char **argv)
 		fprintf (stderr, "No services found\n");
 		return 1;
 	}
-	if (! (mg = create_messages (cfg, service, sbase, argv + optind, argc - optind, mfile, & mcnt, callid, sig, trunc, force, delay, expire, rds)))
+	if (! (mg = create_messages (cfg, service, sbase, argv + optind, argc - optind, mfile, & mcnt, callid, sig, ytrunc, force, delay, expire, rds)))
 		return 1;
 	while (sbase) {
 		stmp = sbase;

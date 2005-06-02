@@ -388,10 +388,15 @@ supported:
 <Dl>
 <Dt> device &lt;text&gt;
 <Dd> The filename for the device where the modem is attached to.
+	  If the CAPI interface should be used, the parameter <text>
+	  must be coded as 
+	     capi/&lt;controller&gt;/&lt;MSN&gt;
+	  Note, there must not be a '/' at the beginning, when using CAPI.
 <Dt> lock-prefix &lt;text&gt;
 <Dd> This is the pathname to prefix the basename of the modemdevice to
 create lockfiles. This can be used to enable more than one application to
 use the modem.
+	  Not used by CAPI.
 <Dt> lock-method &lt;text&gt;
 <Dd> This is a comma seperated list of locking mechanism. Currently these
 flags are supported:
@@ -406,18 +411,25 @@ flags are supported:
      <Li> <em>timeout=&lt;secs&gt;</em> tries to lock the device
 	  <strong>secs</strong> seconds.
      </Ul>
+	  Not used by CAPI.
 <Dt> init &lt;text&gt;
 <Dd> This is the init sequence to initialize the modem.
+	  Not used by CAPI.
 <Dt> dial &lt;text&gt;
 <Dd> This is the dial sequence to dial a phone number with the modem. An
 <strong>\L</strong> in the string will be replaced by the phone number.
+	  If the CAPI interface is used, this entry just defines a
+	  possible needed prefix to dial out, e.g. '0'.
 <Dt> timeout &lt;num&gt;
 <Dd> This is the default timeout to wait for responses of the modem.
+	  Not used by CAPI.
 <Dt> reset &lt;text&gt;
 <Dd> This is the sequence to reset the modem.
+	  Not used by CAPI.
 <Dt> local-init &lt;text&gt;
 <Dd> This is used to customize an existing modem entry for different purpose
 (e.g. force a specific connect rate, etc.)
+	  Not used by CAPI.
 </Dl>
 
 Beside this the section may contain protocol specific entries to adapt the

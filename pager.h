@@ -204,4 +204,18 @@ extern void	ucp_postdeinit (void);
 extern int	verbose;
 extern int	(*verbout) (char *, ...);
 /*}}}*/
+/*{{{	CAPI */
+extern int device_is_capi(char *dev);
+extern int hyla_is_capi(void *sp);
+extern void *hyla_capi_init(char *dev);
+extern void hyla_capi_disconnect(void *sp);
+extern void *hyla_capi_close(void *sp);
+extern int hyla_capi_connect(void *sp, char *dial, char *number);
+extern int hyla_capi_send(void *sp, char *str, int len);
+extern size_t hyla_capi_read(void *sp, void *buf, size_t count);
+extern void hyla_capi_iflush(void *sp);
+extern void hyla_capi_oflush(void *sp);
+extern void hyla_capi_drain(void *sp);
+extern void hyla_capi_sendbreak(void *sp, int duration);
+/*}}}*/
 # endif		/* __PAGER_H */

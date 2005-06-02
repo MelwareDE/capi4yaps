@@ -7,9 +7,9 @@ CFLAGS	:= $(CFLAGS)
 #
 DEFS	= -DCFGFILE=\"$(YAPS_CFGFILE)\" -DLCFGFILE=\"$(YAPS_LCFGFILE)\" \
 	  -DLIBDIR=\"$(YAPS_LIBDIR)\"
-LIBS	= -L. -lpager $(LLIBS)
+LIBS	= -L. -lpager $(LLIBS) -lcapi20
 OBJS	= data.o util.o cfg.o tty.o cv.o asc.o scr.o tap.o ucp.o \
-	  slang.o lua.o #mem.o
+	  slang.o lua.o capiconn.o #mem.o
 YOBJS	= yaps.o valid.o
 DSTFLE	= $(YAPS_BINDIR)/yaps
 

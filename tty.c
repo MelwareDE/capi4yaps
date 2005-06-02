@@ -78,6 +78,11 @@ typedef struct {
 	void		(*callback) (void *, string_t *, char_t, void *);
 	void		*data;
 	Bool		suspend;
+	/* CAPI */
+	int		is_capi;
+	int		controller;
+	char		*msn;
+	int		connected;
 }	serial;
 
 typedef struct _expect {
@@ -88,6 +93,9 @@ typedef struct _expect {
 	struct _expect
 		*next;
 }	expect;
+
+static int data_ready (serial *s, int fd, int *msec);
+
 /*}}}*/
 /*{{{	support routines */
 static char *
@@ -184,24 +192,6 @@ msleep (int msec)
 			errno = 0;
 		}	while ((select (0, NULL, NULL, NULL, & tv) < 0) && (errno == EINTR));
 	}
-}
-
-static inline int
-data_ready (int fd, int *msec)
-{
-	int		ret = 0;
-	struct timeval	tv;
-	fd_set		fset;
-	
-	FD_ZERO (& fset);
-	FD_SET (fd, & fset);
-	tv.tv_sec = *msec / 1000;
-	tv.tv_usec = (*msec % 1000) * 1000;
-	if (((ret = select (fd + 1, & fset, NULL, NULL, & tv)) > 0) && FD_ISSET (fd, & fset)) {
-		*msec = tv.tv_sec * 1000 + (tv.tv_usec / 1000);
-		return 1;
-	}
-	return ret;
 }
 
 static Bool
@@ -366,6 +356,7 @@ tty_open (char *dev, char *lckprefix, char *lckmethod)
 # ifndef	NDEBUG
 		s -> magic = MAGIC;
 # endif		/* NDEBUG */
+		s -> is_capi = 0;
 		if (do_lock (s, dev, lckprefix, lckmethod)) {
 			if ((s -> fd = open (dev, O_RDWR)) != -1) {
 				n = tcgetattr (s -> fd, & s -> sav);
@@ -401,6 +392,9 @@ tty_close (void *sp)
 	serial	*s = (serial *) sp;
 
 	MCHK (s);
+	if (s -> is_capi) {
+		return(hyla_capi_close(sp));
+	}
 	if (s) {
 		if (s -> fd != -1) {
 			tcsetattr (s -> fd, TCSANOW, & s -> sav);
@@ -424,6 +418,11 @@ tty_reopen (void *sp, int msec)
 	serial	*s = (serial *) sp;
 
 	MCHK (s);
+	
+	if (s -> is_capi) {
+		return((s -> connected) ? True : False);
+	}
+	
 	if (s -> fd != -1) {
 		close (s -> fd);
 		if (msec > 0)
@@ -445,14 +444,19 @@ tty_hangup (void *sp, int msec)
 	MCHK (s);
 	V (2, ("[Hangup] "));
 	if (s && (s -> fd != -1)) {
-		tmp = s -> tty;
-		cfsetispeed (& tmp, B0);
-		cfsetospeed (& tmp, B0);
-		if (tcsetattr (s -> fd, TCSANOW, & tmp) != -1) {
-			msleep (msec);
-			tcsetattr (s -> fd, TCSANOW, & s -> tty);
+		if (s -> is_capi) {
+			hyla_capi_disconnect(sp);
+			return;
+		} else {
+			tmp = s -> tty;
+			cfsetispeed (& tmp, B0);
+			cfsetospeed (& tmp, B0);
+			if (tcsetattr (s -> fd, TCSANOW, & tmp) != -1) {
+				msleep (msec);
+				tcsetattr (s -> fd, TCSANOW, & s -> tty);
+			}
+			tty_reopen (s, msec);
 		}
-		tty_reopen (s, msec);
 	}
 	V (2, ("\n"));
 }
@@ -598,7 +602,14 @@ tty_send (void *sp, char *str, int len)
 		return -1;
 	V (2, ("[Send] %s", mkprint (str, len)));
 	sent = 0;
-	while (len > 0)
+	while (len > 0) {
+		if (s -> is_capi) {
+			if (hyla_capi_send(sp, str, len)) {
+				sent = len;
+				len = 0;
+			}
+			break;
+		}
 		if ((n = write (s -> fd, str, len)) > 0) {
 			str += n;
 			sent += n;
@@ -612,6 +623,7 @@ tty_send (void *sp, char *str, int len)
 			msleep (200);
 		else if (errno != EINTR)
 			break;
+	}
 	V (2, ("\n"));
 	return sent;
 }
@@ -640,6 +652,14 @@ addline (serial *s, char ch)
 	}
 }
 
+static size_t dev_read(serial *s, int fd, void *buf, size_t count)
+{
+	if (s -> is_capi)
+		return(hyla_capi_read(s, buf, count));
+
+	return(read(fd, buf, count));
+}
+
 static int
 do_expect (serial *s, int tout, expect *base)
 {
@@ -657,8 +677,8 @@ do_expect (serial *s, int tout, expect *base)
 	msec = (tout > 0) ? tout * 1000 : 0;
 	ret = 0;
 	while (! ret)
-		if ((n = data_ready (s -> fd, & msec)) > 0) {
-			while ((n = read (s -> fd, & ch, 1)) == 1) {
+		if ((n = data_ready (s, s -> fd, & msec)) > 0) {
+			while ((n = dev_read (s, s -> fd, & ch, 1)) == 1) {
 				addline (s, ch);
 				V (3, ("%s", mkprint (& ch, 1)));
 				for (run = base; run; run = run -> next)
@@ -900,7 +920,10 @@ handle_command (void *sp, char *str)
 			case 'b':
 				if (s && (s -> fd != -1)) {
 					V (2, (" Brk %d", mult));
-					tcsendbreak (s -> fd, mult);
+					if (s -> is_capi)
+						hyla_capi_sendbreak(s, mult);
+					else
+						tcsendbreak (s -> fd, mult);
 				}
 				break;
 			case 'h':
@@ -912,19 +935,28 @@ handle_command (void *sp, char *str)
 			case 'o':
 				if (s && (s -> fd != -1)) {
 					V (2, (" Drain"));
-					tcdrain (s -> fd);
+					if (s -> is_capi)
+						hyla_capi_drain(s);
+					else
+						tcdrain (s -> fd);
 				}
 				break;
 			case '<':
 				if (s && (s -> fd != -1)) {
 					V (2, (" Iflush"));
-					tcflush (s -> fd, TCIFLUSH);
+					if (s -> is_capi)
+						hyla_capi_iflush(s);
+					else
+						tcflush (s -> fd, TCIFLUSH);
 				}
 				break;
 			case '>':
 				if (s && (s -> fd != -1)) {
 					V (2, (" Oflush"));
-					tcflush (s -> fd, TCOFLUSH);
+					if (s -> is_capi)
+						hyla_capi_oflush(s);
+					else
+						tcflush (s -> fd, TCOFLUSH);
 				}
 				break;
 			case 'f':
@@ -1110,8 +1142,8 @@ tty_mdrain (void *sp, int msecs)
 		if (msecs < 0)
 			msecs = 0;
 		do {
-			if ((n = data_ready (s -> fd, & msecs)) > 0) {
-				while ((m = read (s -> fd, & ch, 1)) == 1) {
+			if ((n = data_ready (s, s -> fd, & msecs)) > 0) {
+				while ((m = dev_read (s, s -> fd, & ch, 1)) == 1) {
 					addline (s, ch);
 					V (2, ("%s", mkprint (& ch, 1)));
 				}
@@ -1130,3 +1162,368 @@ tty_drain (void *sp, int secs)
 	tty_mdrain (sp, secs * 1000);
 }
 /*}}}*/
+
+/*
+ * CAPI 
+ */
+
+#include "capiconn.h"
+
+static capiconn_context *ctx;
+static unsigned applid;
+static capi_contrinfo cinfo = { 0 , 0, 0 };
+static struct capi_connection *capi_conn = NULL;
+static serial *capi_serial;
+static int conn_in_progress = 0;
+static int capi_data_sent;
+static unsigned char capi_data[4096];
+static int capi_data_len = 0;
+
+static void handle_messages(void)
+{
+	unsigned char *msg = 0;
+	struct timeval tv;
+	tv.tv_sec  = 1;
+	tv.tv_usec = 0;
+again:
+	if (capi20_waitformessage(applid, &tv) == 0) {
+		if (capi20_get_message(applid, &msg) == 0)
+			capiconn_inject(applid, msg);
+		tv.tv_sec  = 0;
+		tv.tv_usec = 0;
+		goto again;
+	}
+}
+ 
+int device_is_capi(char *dev)
+{
+	if (!dev)
+		return(0);
+
+	if (strlen(dev) < 4)
+		return(0);
+
+	if (strncasecmp(dev, "capi", 4))
+		return(0);
+
+	return(1);
+}
+
+int hyla_is_capi(void *sp)
+{
+	serial	*s = (serial *) sp;
+	return(s->is_capi);
+}
+
+static void capi_log(const char *format, ...)
+{
+	char buffer[2048];
+	va_list ap;
+
+	va_start(ap, format);
+	vsprintf(buffer, format, ap);
+	strcat(buffer, "\n");
+	va_end(ap);
+	V (3, (buffer));
+}
+
+static void chargeinfo(capi_connection *cp, unsigned long charge, int inunits)
+{
+	if (inunits) {
+		V (3, ("charge in units: %d\n", charge));
+	} else {
+		V (3, ("charge in currency: %d\n", charge));
+	}
+}
+
+static void put_message(unsigned appid, unsigned char *msg)
+{
+	unsigned err;
+	err = capi20_put_message (appid, msg);
+	if (err)
+		V (2, ("capi putmessage %s 0x%x\n", 
+			capi_info2str(err), err));
+}
+
+static void connected(capi_connection *cp, _cstruct NCPI)
+{
+	capi_serial -> connected = 1;
+	conn_in_progress = 0;
+	V (3, ("CAPI connected\n"));
+}
+
+static void disconnected(capi_connection *cp,
+			int localdisconnect,
+			unsigned reason,
+			unsigned reason_b3)
+{
+	capi_serial -> connected = 0;
+	conn_in_progress = 0;
+	capi_conn = NULL;
+	V (3, ("CAPI disconnected\n"));
+}
+
+static void handle_capi_sent(capi_connection *con, unsigned char* data)
+{
+	capi_data_sent = 1;
+}
+
+static void handle_capi_data(capi_connection *con, unsigned char* data, unsigned int len)
+{
+	int mlen = ((sizeof(capi_data) - capi_data_len) < len) ? 
+			(sizeof(capi_data) - capi_data_len) : len;
+
+	if (mlen) {
+		memcpy(&capi_data[capi_data_len], data, mlen);
+		capi_data_len += mlen;
+	} else {
+		V (3, ("\ncapi data buffer overflow\n"));
+	}
+}
+
+capiconn_callbacks callbacks = {
+	malloc: malloc,
+	free: free,
+
+	disconnected: disconnected,
+	incoming: 0,
+	connected: connected,
+	received: handle_capi_data,
+	datasent: handle_capi_sent,
+	chargeinfo: chargeinfo,
+	capi_put_message: put_message,
+	debugmsg: (void (*)(const char *, ...))capi_log,
+	infomsg: (void (*)(const char *, ...))capi_log,
+	errmsg: (void (*)(const char *, ...))capi_log
+};
+
+void *hyla_capi_init(char *dev)
+{
+	serial	*s;
+	char *p, *p1, *p2;
+	
+	if (s = (serial *) malloc (sizeof (serial))) {
+		if ((capi20_register (1, 8, 2048, &applid)) != 0) {
+			free (s);
+			V (3, ("Error CAPI register\n"));
+			return(NULL);
+		}
+
+# ifndef	NDEBUG
+		s -> magic = MAGIC;
+# endif		/* NDEBUG */
+
+		s -> device = strdup (dev);
+		p = skipch(s -> device, '/');
+		p1 = p;
+		p2 = skipch(p, '/');
+		if (*p1)
+			s -> controller = strtol(p1, NULL, 10);
+		else
+			s -> controller = 1;
+		if (*p2)
+			s -> msn = strdup(p2);
+		else
+			s -> msn = NULL;
+	
+		V (3, ("CAPI controller=%d MSN=%s\n", s -> controller, s -> msn));
+		
+		if ((ctx = capiconn_getcontext(applid, &callbacks)) != 0) {
+			if (capiconn_addcontr(ctx, s -> controller, &cinfo) != CAPICONN_OK) {
+				(void)capiconn_freecontext(ctx);
+				(void)capi20_release(applid);
+				if (s -> msn)
+					free (s -> msn);
+				if (s -> device)
+					free (s -> device);
+				free (s);
+				s = NULL;
+			}
+			s -> fd = capi20_fileno(applid);
+			s -> is_capi = 1;
+			s -> connected = 0;
+			s -> line = NULL;
+			s -> sep = NULL;
+			s -> callback = NULL;
+			s -> data = NULL;
+			s -> suspend = False;
+			capi_serial = s;
+		} else {
+			(void)capi20_release(applid);
+			V (3, ("Error CAPI-conn register\n"));
+			if (s -> msn)
+				free (s -> msn);
+			if (s -> device)
+				free (s -> device);
+			free (s);
+			s = NULL;
+		}
+	}
+	return s;
+}
+
+void hyla_capi_disconnect(void *sp)
+{
+	serial	*s = (serial *) sp;
+	time_t t;
+
+	if (!s || !s -> connected)
+		return;
+
+	(void)capiconn_disconnect(capi_conn, 0);
+
+	t = time(NULL) + 3; /* 3 seconds */
+	do {
+		handle_messages();
+	} while ((time(NULL) < t) && (s -> connected));
+}
+
+void *hyla_capi_close(void *sp)
+{
+	serial	*s = (serial *) sp;
+
+	MCHK (s);
+	if (s) {
+		hyla_capi_disconnect(sp);
+
+		(void)capi20_release(applid);
+		(void)capiconn_freecontext(ctx);
+
+		if (s -> device)
+			free (s -> device);
+		if (s -> msn)
+			free (s -> msn);
+		if (s -> sep)
+			free (s -> sep);
+		if (s -> line)
+			sfree (s -> line);
+		free (s);
+		capi_serial = NULL;
+		capi_conn = NULL;
+	}
+	return(NULL);
+}
+
+int hyla_capi_connect(void *sp, char *dial, char *number)
+{
+	serial	*s = (serial *) sp;
+	struct capi_connection *cp;
+	time_t t;
+	char num[128];
+
+	conn_in_progress = 1;
+
+	if (!dial)
+		dial = "";
+		
+	sprintf(num, "%s%s", dial, number);
+
+	/* X.75 connect */
+	cp = capiconn_connect(ctx,
+			s -> controller,
+			2,	/* cip */
+			num,
+			s -> msn,
+			0, 0, 0,
+			0, 0, 0,
+			0, 0);
+
+	capi_conn = cp;
+
+	t = time(NULL) + 10; /* 10 seconds */
+	do {
+		handle_messages();
+	} while ((time(NULL) < t) && (conn_in_progress));
+
+	if ((!s -> connected) && (capi_conn))
+		(void)capiconn_disconnect(capi_conn, 0);
+
+	return(s -> connected);
+}
+
+int hyla_capi_send(void *sp, char *str, int len)
+{
+	serial	*s = (serial *) sp;
+	time_t t;
+
+	if (!s || !s -> connected)
+		return(0);
+
+	capi_data_sent = 0;
+
+	capiconn_send(capi_conn, str, len);
+
+	t = time(NULL) + 5; /* 5 seconds */
+	do {
+		handle_messages();
+	} while ((time(NULL) < t) && (!capi_data_sent));
+	
+	return(capi_data_sent);
+}
+
+size_t hyla_capi_read(void *sp, void *buf, size_t count)
+{
+	serial	*s = (serial *) sp;
+	size_t ret=0;
+
+	if (!capi_data_len)
+		handle_messages();
+
+	if (!s || !s -> connected)
+		return(-1);
+		
+	ret = (count < capi_data_len) ? count : capi_data_len;
+	
+	memcpy(buf, capi_data, ret);
+
+	capi_data_len -= ret;
+
+	memmove(capi_data, capi_data+ret, capi_data_len);
+
+	return(ret);
+}
+
+void hyla_capi_iflush(void *sp)
+{
+	capi_data_len = 0;
+}
+
+void hyla_capi_oflush(void *sp)
+{
+	/* not necessary */
+}
+
+void hyla_capi_drain(void *sp)
+{
+	/* not necessary */
+}
+
+void hyla_capi_sendbreak(void *sp, int duration)
+{
+	/* ... */
+}
+
+static int
+data_ready (serial *s, int fd, int *msec)
+{
+	int		ret = 0;
+	struct timeval	tv;
+	fd_set		fset;
+
+	if (s -> is_capi) {
+		if (capi_data_len)
+			return(1);
+		if (!s -> connected)
+			return(0);
+	}
+	
+	FD_ZERO (& fset);
+	FD_SET (fd, & fset);
+	tv.tv_sec = *msec / 1000;
+	tv.tv_usec = (*msec % 1000) * 1000;
+	if (((ret = select (fd + 1, & fset, NULL, NULL, & tv)) > 0) && FD_ISSET (fd, & fset)) {
+		*msec = tv.tv_sec * 1000 + (tv.tv_usec / 1000);
+		return 1;
+	}
+	return ret;
+}

@@ -401,12 +401,15 @@ Modem section
    currently supported:
    
    device <text>
-          The filename for the device where the modem is attached to.
+          The filename for the device where the modem is attached to. If
+          the CAPI interface should be used, the parameter must be coded
+          as capi/<controller>/<MSN> Note, there must not be a '/' at the
+          beginning, when using CAPI.
           
    lock-prefix <text>
           This is the pathname to prefix the basename of the modemdevice
           to create lockfiles. This can be used to enable more than one
-          application to use the modem.
+          application to use the modem. Not used by CAPI.
           
    lock-method <text>
           This is a comma seperated list of locking mechanism. Currently
@@ -420,23 +423,29 @@ Modem section
             basename of the device.
           + timeout=<secs> tries to lock the device secs seconds.
             
+          Not used by CAPI.
+          
    init <text>
-          This is the init sequence to initialize the modem.
+          This is the init sequence to initialize the modem. Not used by
+          CAPI.
           
    dial <text>
           This is the dial sequence to dial a phone number with the
           modem. An \L in the string will be replaced by the phone
-          number.
+          number. If the CAPI interface is used, this entry just defines
+          a possible needed prefix to dial out, e.g. '0'.
           
    timeout <num>
           This is the default timeout to wait for responses of the modem.
+          Not used by CAPI.
           
    reset <text>
-          This is the sequence to reset the modem.
+          This is the sequence to reset the modem. Not used by CAPI.
           
    local-init <text>
           This is used to customize an existing modem entry for different
-          purpose (e.g. force a specific connect rate, etc.)
+          purpose (e.g. force a specific connect rate, etc.) Not used by
+          CAPI.
           
    Beside this the section may contain protocol specific entries to adapt
    the protocol for this service.

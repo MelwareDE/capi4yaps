@@ -1,6 +1,6 @@
 Begin3
 Title:          yaps
-Version:        0.96
+Version:        0.96.c2
 Entered-date:   14JUN97
 Description:    This is a standalone program to send messages to paging
                 devices over a modem gateway using well defined protocols.
